@@ -73,7 +73,6 @@ def send_post_request(face_id):
         if response.status_code == 200:
             print("Attendance updated successfully.")
             # Set the stop_camera flag to True
-            stop_camera = True
         elif response.status_code == 500:
             print("Error: Unknown error occurred.")
         else:
@@ -82,6 +81,8 @@ def send_post_request(face_id):
         # Extract message from API response
         response_data = response.json()
         message = response_data.get('message')
+        stop_camera = True
+
         if message:
             print("API Message:", message)
             # Display the API message using the non-blocking show_alert function
@@ -151,6 +152,13 @@ def start_attendance_camera():
                 # Draw a box around the detected face with label as "Unknown"
                 cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
                 cv2.putText(frame, "Unknown", (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+
+                if stop_camera:
+                    cap.release()
+                    cv2.destroyAllWindows()
+
+                    show_alert("Muka mahasiswa tidak dikenali oleh sistem!")
+                    return
 
         # Display the frame
         cv2.imshow("Attendance Camera", frame)
