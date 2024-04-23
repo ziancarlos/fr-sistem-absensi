@@ -7,6 +7,7 @@ import os
 import requests
 import json
 import logging
+import time  # Import the time module
 
 # Configure logging
 logging.basicConfig(filename='attendance_system.log', level=logging.INFO)
@@ -28,13 +29,36 @@ for file_name in os.listdir(faces_dir):
         known_face_names.extend([name] * len(encodings))
 
 # URL to send the POST request for matching
-match_post_url = "https://myc-sistech.com/sistem-absensi-uph/api/attendance/face.php"
+# match_post_url = "https://myc-sistech.com/sistem-absensi-uph/api/attendance/face.php"
+match_post_url = "http://localhost/sistem-absensi-uph/api/attendance/face.php"
 
 # Initialize the video capture object for the default camera
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
+# Function to show alert messages in a new Toplevel window
+def show_alert(message):
+    # Create a new Toplevel window
+    alert_window = tk.Toplevel(root)
+    alert_window.title("API Response")
+    
+    # Create a label in the new window to display the message
+    message_label = tk.Label(alert_window, text=message, wraplength=300)
+    message_label.pack()
+    
+    # Add a button to close the alert window
+    close_button = tk.Button(alert_window, text="Close", command=alert_window.destroy)
+    close_button.pack()
+    
+    # Update the GUI to reflect the new Toplevel window
+    alert_window.update()
+
+# Define the stop_camera flag
+stop_camera = False
+
 # Function to send a POST request with the face ID (picture name)
 def send_post_request(face_id):
+    global stop_camera  # Access the global stop_camera flag
+    
     # Prepare the POST parameters
     data = {
         'attendance': True,
@@ -48,6 +72,8 @@ def send_post_request(face_id):
         # Check the response status code
         if response.status_code == 200:
             print("Attendance updated successfully.")
+            # Set the stop_camera flag to True
+            stop_camera = True
         elif response.status_code == 500:
             print("Error: Unknown error occurred.")
         else:
@@ -58,17 +84,28 @@ def send_post_request(face_id):
         message = response_data.get('message')
         if message:
             print("API Message:", message)
+            # Display the API message using the non-blocking show_alert function
+            show_alert(message)
         
     except Exception as e:
         print("Error:", e)
-        messagebox.showerror("Error", str(e))
+        # Display the error message using the non-blocking show_alert function
+        show_alert(str(e))
 
 # Function to start the camera view for attendance
 def start_attendance_camera():
-    tolerance = 0.6  # Lower the tolerance for stricter matching
+    global stop_camera  # Access the global stop_camera flag
+
+    # Initialize the video capture object for the default camera
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+
+    tolerance = 0.8  # Lower the tolerance for stricter matching
     confidence_threshold = 0.4  # Set a confidence threshold for matching
-    
+
+  
+
     while True:
+        # Capture the frame from the camera
         ret, frame = cap.read()
         if not ret:
             continue
@@ -76,10 +113,12 @@ def start_attendance_camera():
         # Convert the frame from BGR to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Find all face locations and encodings in the current frame
+        # Detect faces in the frame
         face_locations = face_recognition.face_locations(rgb_frame)
         face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
+    
+        # Process each detected face
         for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
             # Compare the detected face with known faces using the adjusted tolerance
             matches = face_recognition.compare_faces(known_face_encodings, face_encoding, tolerance)
@@ -95,27 +134,33 @@ def start_attendance_camera():
             # If a match is found and the best match distance is within the confidence threshold
             if matches[best_match_index] and best_match_distance <= confidence_threshold:
                 name = known_face_names[best_match_index]
-                print(name)
                 
-                # Send a POST request when a face match is found
+                # Draw a box around the detected face
+                cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+                cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                
+                # If a match is found and within threshold, send POST request after 3 seconds
+                cv2.waitKey(2000)
                 send_post_request(name)
+                
+                if stop_camera:
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    return
             else:
-                # Log unknown face detected with the best match distance
-                logging.warning(f"Unknown face detected. Best match distance: {best_match_distance:.2f}")
-
-            # Draw a box around the face
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-            
-            # Display the name of the detected face at the top of the box
-            cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                # Draw a box around the detected face with label as "Unknown"
+                cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+                cv2.putText(frame, "Unknown", (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
 
         # Display the frame
         cv2.imshow("Attendance Camera", frame)
-        
+
+        # Check for user input to break the loop
         key = cv2.waitKey(1)
         if key == ord("q"):
             break
 
+    # Release the camera and destroy display window
     cap.release()
     cv2.destroyAllWindows()
 
