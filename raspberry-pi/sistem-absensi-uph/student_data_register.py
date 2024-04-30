@@ -114,21 +114,20 @@ def logout_enter(event=None):
 def logout_leave(event=None):
 	logout_button.config(bg="#001B37")
 
-
 def fetchData():
-	try:
-    	url = "https://myc-sistech.com/sistem-absensi-uph-web-and-api/api/fetchData.php"
-    	payload = {'action': 'fetchData'}
-    	response = requests.post(url, data=payload)
-    	if response.status_code == 200:
-        	data = json.loads(response.text)
-        	return data
-    	else:
-        	return None
-	except Exception as e:
-    	messagebox.showerror("Error", f"Failed to fetch data: {e}")
-    	return None
-
+    try:
+        url = "https://myc-sistech.com/sistem-absensi-uph-web-and-api/api/students.php"
+        payload = {'getAllStudents': ''}
+        response = requests.get(url, params=payload)
+        if response.status_code == 200:
+            data = json.loads(response.text)
+            return data
+        else:
+            return None
+    except Exception as e:
+        # Jika terjadi kesalahan, tampilkan pesan kesalahan
+        print(f"Failed to fetch data: {e}")
+        return None
 
 def show():
 	try:
